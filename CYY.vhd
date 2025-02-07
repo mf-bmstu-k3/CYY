@@ -20,239 +20,233 @@
 -- q_a_RP - данные, считываемые из РП, через порт а
 -- q_b_RP - данные, считываемые из РП, через порт b
 
+LIBRARY IEEE;
+USE IEEE.STD_LOGIC_1164.ALL;
+USE IEEE.STD_LOGIC_ARITH.ALL;
+USE IEEE.STD_LOGIC_UNSIGNED.ALL;
 
+ENTITY CYY IS
+	GENERIC (n : INTEGER := 8); -- n параметр, задает разрядность операндов
+	PORT (
+		q_a : STD_LOGIC_VECTOR (7 DOWNTO 0);-- имитируем базовый адрес из РП 	
+		q_b : STD_LOGIC_VECTOR (7 DOWNTO 0);-- имитируем второй операнд из РП 	
+		clk : IN STD_LOGIC; -- тактовый сигнал
+		set : IN STD_LOGIC; --  сигнал начальной установки
+		-- Для взаимодействия с АУ
+		a : BUFFER STD_LOGIC_VECTOR (n - 1 DOWNTO 0);-- первый операнд для АУ		
+		b : BUFFER STD_LOGIC_VECTOR (n - 1 DOWNTO 0);-- второй операнд для АУ
 
-library IEEE;
-use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.STD_LOGIC_ARITH.ALL;
-use IEEE.STD_LOGIC_UNSIGNED.ALL;
+		cop : BUFFER STD_LOGIC; --  код операции 1-умножение,0 - сложение для АУ
+		sno : BUFFER STD_LOGIC; -- сигнал начала операции для АУ
 
-entity CYY is
-generic (n:integer:=8);     -- n параметр, задает разрядность операндов
-	port
-	(
-		q_a 		 : STD_LOGIC_VECTOR (7 downto 0);-- имитируем базовый адрес из РП 	
-		q_b 		 : STD_LOGIC_VECTOR (7 downto 0);-- имитируем второй операнд из РП 	
-		clk		 : in	std_logic; -- тактовый сигнал
-		set 		 : in	std_logic; --  сигнал начальной установки
--- Для взаимодействия с АУ
-		a 			 : buffer  STD_LOGIC_VECTOR (n-1 downto 0);-- первый операнд для АУ		
-		b 			 : buffer  STD_LOGIC_VECTOR (n-1 downto 0);-- второй операнд для АУ
-		
-		cop		 : buffer	std_logic; --  код операции 1-умножение,0 - сложение для АУ
-		sno		 : buffer	std_logic; -- сигнал начала операции для АУ
-		
-		rr 		 : buffer  STD_LOGIC_VECTOR (2*n-1 downto 0);-- результат из АУ
-      priznak 	 : buffer  STD_LOGIC_VECTOR (1 downto 0); -- признак результата из АУ
-		sko	 	 : buffer	std_logic; -- сигнал конца операции из АУ
--- Для наблюдения внутренних сигналов во время отладки проекта
-		signal RA : buffer STD_LOGIC_VECTOR (7 downto 0);-- регистр адреса, для адресации операнда в ОП
-		signal CK : buffer STD_LOGIC_VECTOR (7 downto 0);-- счетчик команд, для адресации текущей команды в ОП
-		signal RK : buffer STD_LOGIC_VECTOR (7 downto 0);-- регистр команд, для хранения текущей выполняемой команды
-		s_out		 : out  STD_LOGIC_VECTOR(2 downto 0) ;  -- отладочный выход для наблюдения состояний БМК
--- Для взаимодействия с ОП		
-		data_in_OP : buffer STD_LOGIC_VECTOR (7 downto 0); -- данные для записи в ОП
-		address_OP : buffer STD_LOGIC_VECTOR (7 downto 0); -- адрес, для обращения к ОП
-		wr_en_OP   : buffer std_logic; -- сигнал записи в ОП, если этот сигнал не активен, ОП выполняет чтение
-		data_out_OP: buffer STD_LOGIC_VECTOR (7 downto 0) -- данные, считанные из ОП
-		
--- Для взаимодействия с РП
---		data_in_a_RP : out STD_LOGIC_VECTOR (7 downto 0); -- данные для записи в РП, через порт а
---		address_a_RP : out STD_LOGIC_VECTOR (2 downto 0); -- адрес, для обращения к RП, через порт a
---		wr_en_a_RP 	 : out std_logic; -- сигнал записи через порт а в РП, если этот сигнал не активен PП выполняет чтение
---		data_in_b_RP : out STD_LOGIC_VECTOR (7 downto 0); -- данные для записи в РП, через порт b
---		address_b_RP : out STD_LOGIC_VECTOR (2 downto 0); -- адрес, для обращения к RП, через порт b
---		wr_en_b_RP 	 : out std_logic -- сигнал записи через порт b в РП, если этот сигнал не активен PП выполняет чтение
+		rr : BUFFER STD_LOGIC_VECTOR (2 * n - 1 DOWNTO 0);-- результат из АУ
+		priznak : BUFFER STD_LOGIC_VECTOR (1 DOWNTO 0); -- признак результата из АУ
+		sko : BUFFER STD_LOGIC; -- сигнал конца операции из АУ
+		-- Для наблюдения внутренних сигналов во время отладки проекта
+		SIGNAL RA : BUFFER STD_LOGIC_VECTOR (7 DOWNTO 0);-- регистр адреса, для адресации операнда в ОП
+		SIGNAL CK : BUFFER STD_LOGIC_VECTOR (7 DOWNTO 0);-- счетчик команд, для адресации текущей команды в ОП
+		SIGNAL RK : BUFFER STD_LOGIC_VECTOR (7 DOWNTO 0);-- регистр команд, для хранения текущей выполняемой команды
+		s_out : OUT STD_LOGIC_VECTOR(2 DOWNTO 0); -- отладочный выход для наблюдения состояний БМК
+		-- Для взаимодействия с ОП		
+		data_in_OP : BUFFER STD_LOGIC_VECTOR (7 DOWNTO 0); -- данные для записи в ОП
+		address_OP : BUFFER STD_LOGIC_VECTOR (7 DOWNTO 0); -- адрес, для обращения к ОП
+		wr_en_OP : BUFFER STD_LOGIC; -- сигнал записи в ОП, если этот сигнал не активен, ОП выполняет чтение
+		data_out_OP : BUFFER STD_LOGIC_VECTOR (7 DOWNTO 0) -- данные, считанные из ОП
+
+		-- Для взаимодействия с РП
+		--		data_in_a_RP : out STD_LOGIC_VECTOR (7 downto 0); -- данные для записи в РП, через порт а
+		--		address_a_RP : out STD_LOGIC_VECTOR (2 downto 0); -- адрес, для обращения к RП, через порт a
+		--		wr_en_a_RP 	 : out std_logic; -- сигнал записи через порт а в РП, если этот сигнал не активен PП выполняет чтение
+		--		data_in_b_RP : out STD_LOGIC_VECTOR (7 downto 0); -- данные для записи в РП, через порт b
+		--		address_b_RP : out STD_LOGIC_VECTOR (2 downto 0); -- адрес, для обращения к RП, через порт b
+		--		wr_en_b_RP 	 : out std_logic -- сигнал записи через порт b в РП, если этот сигнал не активен PП выполняет чтение
 	);
 
-end entity CYY;
+END ENTITY CYY;
 
-architecture arch of CYY is
------------------------------Декларация компонента ОП на 256 байт --------------------------------------------------------------------
+ARCHITECTURE arch OF CYY IS
+	-----------------------------Декларация компонента ОП на 256 байт --------------------------------------------------------------------
 
-component memory
-	PORT
-	(
-		address	: IN STD_LOGIC_VECTOR (7 DOWNTO 0); -- адресный вход
-		clock		: IN STD_LOGIC  := '1';				   -- тактовый вход
-		data		: IN STD_LOGIC_VECTOR (7 DOWNTO 0); -- вход данных
-		wren		: IN STD_LOGIC ;						   -- разрешение записи
-		q		: OUT STD_LOGIC_VECTOR (7 DOWNTO 0)	   -- выход данных 
-	);
-end component;
----------------------------------------------------------------------------------------------------------------------------------------
--- Следующим компонентом является память регистровая RP 
--- Пока для операции умножения добавим два внешних входных порта q_a и q_b, имитирующих передачу базового адреса и второго операнда из РП 
--- Декларация компонента регистровой памяти на 8 байт
--- Позднее добавим сюда декларацию памяти регистровой
--- 
---
-----------------------------------------------------------------------------------------------------------------------------------------------------
----- Компонент Арифметическое устройство, спроектированное ранее
--- Взят из седьмого проекта
+	COMPONENT memory
+		PORT (
+			address : IN STD_LOGIC_VECTOR (7 DOWNTO 0); -- адресный вход
+			clock : IN STD_LOGIC := '1'; -- тактовый вход
+			data : IN STD_LOGIC_VECTOR (7 DOWNTO 0); -- вход данных
+			wren : IN STD_LOGIC; -- разрешение записи
+			q : OUT STD_LOGIC_VECTOR (7 DOWNTO 0) -- выход данных 
+		);
+	END COMPONENT;
+	---------------------------------------------------------------------------------------------------------------------------------------
+	-- Следующим компонентом является память регистровая RP 
+	-- Пока для операции умножения добавим два внешних входных порта q_a и q_b, имитирующих передачу базового адреса и второго операнда из РП 
+	-- Декларация компонента регистровой памяти на 8 байт
+	-- Позднее добавим сюда декларацию памяти регистровой
+	-- 
+	--
+	----------------------------------------------------------------------------------------------------------------------------------------------------
+	---- Компонент Арифметическое устройство, спроектированное ранее
+	-- Взят из седьмого проекта
 
-COMPONENT ctrl_un_BO
-	GENERIC ( n : INTEGER ); -- разрядность операндов
-	PORT
-	(
-		a		:	 IN STD_LOGIC_VECTOR(n-1 DOWNTO 0); -- вход первого операнда
-		b		:	 IN STD_LOGIC_VECTOR(n-1 DOWNTO 0); -- вход второго операнда
-		clk		:	 IN STD_LOGIC; -- синхросигнал
-		set		:	 IN STD_LOGIC; -- сигнал начальной установки
-		cop		:	 IN STD_LOGIC; -- код операции 
-		sno		:	 IN STD_LOGIC; -- сигнал начала операции
-		rr			:	 OUT STD_LOGIC_VECTOR(2*n-1 DOWNTO 0); -- результат
-		priznak	:	 OUT STD_LOGIC_VECTOR(1 DOWNTO 0); -- признак результата
-		sko		:	 OUT STD_LOGIC -- сигнал конца операции
-	);
-END COMPONENT;
+	COMPONENT ctrl_un_BO
+		GENERIC (n : INTEGER); -- разрядность операндов
+		PORT (
+			a : IN STD_LOGIC_VECTOR(n - 1 DOWNTO 0); -- вход первого операнда
+			b : IN STD_LOGIC_VECTOR(n - 1 DOWNTO 0); -- вход второго операнда
+			clk : IN STD_LOGIC; -- синхросигнал
+			set : IN STD_LOGIC; -- сигнал начальной установки
+			cop : IN STD_LOGIC; -- код операции 
+			sno : IN STD_LOGIC; -- сигнал начала операции
+			rr : OUT STD_LOGIC_VECTOR(2 * n - 1 DOWNTO 0); -- результат
+			priznak : OUT STD_LOGIC_VECTOR(1 DOWNTO 0); -- признак результата
+			sko : OUT STD_LOGIC -- сигнал конца операции
+		);
+	END COMPONENT;
 
-------------------------------------------------------------------------------------------------------------------------------------------------
--- Декларация сигналов, используемых в проекте
-type state_type is (s0, s1, s2, s3, s4, s5, s6); -- определяем состояния БМК
+	------------------------------------------------------------------------------------------------------------------------------------------------
+	-- Декларация сигналов, используемых в проекте
+	TYPE state_type IS (s0, s1, s2, s3, s4, s5, s6); -- определяем состояния БМК
 
-	signal next_state, state : state_type; -- следующее состояние, текущее состояние
-	
+	SIGNAL next_state, state : state_type; -- следующее состояние, текущее состояние
 
+	SIGNAL incr_CK : STD_LOGIC := '0';-- разрешение инкремента СК
+	SIGNAL summ_CK : STD_LOGIC := '0';-- вычисление адреса перехода
+	SIGNAL load_RK : STD_LOGIC := '0';-- загрузка команды
+	SIGNAL load_RA : STD_LOGIC := '0';-- загрузка адреса
+	SIGNAL IA : STD_LOGIC_VECTOR (7 DOWNTO 0);-- исполнительный адрес операнда в ОП
+	SIGNAL incr_RA : STD_LOGIC := '0';-- разрешение инкремента РА
+	-----------------------------------------------------------------------------------
 
-signal incr_CK	: STD_LOGIC:='0';-- разрешение инкремента СК
-signal summ_CK	: STD_LOGIC:='0';-- вычисление адреса перехода
-signal load_RK	: STD_LOGIC:='0';-- загрузка команды
-signal load_RA	: STD_LOGIC:='0';-- загрузка адреса
-signal IA		: STD_LOGIC_VECTOR (7 downto 0);-- исполнительный адрес операнда в ОП
-signal incr_RA	: STD_LOGIC:='0';-- разрешение инкремента РА
------------------------------------------------------------------------------------
+BEGIN
+	Comp_OP : memory
+	PORT MAP(address_OP, clk, data_in_OP, wr_en_OP, data_out_OP);
 
-begin
-Comp_OP: memory
-port map ( address_OP, clk, data_in_OP, wr_en_OP, data_out_OP);
+	--Comp_RP: OP
+	--port map ( address_OP, clk, data_in_OP, wr_en_OP, data_out_OP);
 
---Comp_RP: OP
---port map ( address_OP, clk, data_in_OP, wr_en_OP, data_out_OP);
+	Comp_AU : ctrl_un_BO
+	GENERIC MAP
+		(n => 8)
+	PORT MAP(a, b, clk, set, cop, sno, rr, priznak, sko);
 
-Comp_AU: ctrl_un_BO
-generic map
-	(n => 8)
-port map ( a,b,clk,set,cop,sno,rr,priznak,sko);
+	-------------------------------------------------------------------------------------------
+	pr_CK : PROCESS (set, clk) -- этот процесс определяет поведение счетчика команд СК
 
--------------------------------------------------------------------------------------------
-pr_CK:   process (set, clk) -- этот процесс определяет поведение счетчика команд СК
-	
-	begin
-		if (set='1') then CK<=(others=>'0'); --устанавливаем в начальное состояние
-		elsif clk'event and clk='1' then 
-		  if (incr_CK='1') then CK<=CK+"00000001"; -- инкремент счетчика
-			elsif (summ_CK='1') then CK<= CK +RK(5)&RK(5)& RK(5 downto 0); -- вычисление адреса перехода
-		  end if;
-		 end if;
-	end process pr_CK;
-----------------------------------------------------------------------------------------
+	BEGIN
+		IF (set = '1') THEN
+			CK <= (OTHERS => '0'); --устанавливаем в начальное состояние
+		ELSIF clk'event AND clk = '1' THEN
+			IF (incr_CK = '1') THEN
+				CK <= CK + "00000001"; -- инкремент счетчика
+			ELSIF (summ_CK = '1') THEN
+				CK <= CK + RK(5) & RK(5) & RK(5 DOWNTO 0); -- вычисление адреса перехода
+			END IF;
+		END IF;
+	END PROCESS pr_CK;
+	----------------------------------------------------------------------------------------
 
----------------------------------------------------------------------------------------
-	 
-pr_RK: process (clk) -- этот процесс определяет поведение регистра команд
-	begin
-		if clk'event and clk='1' then -- по положительному фронту clk
-			if load_RK='1' then -- если есть разрешение на прием команды
-			RK<=data_out_OP; -- выполняется прием команды с выхода ОП
-			end if;
-		end if;
-	end process pr_RK;
----------------------------------------------------------------------------------------------
-pr_RA: process (clk)-- этот процесс описывает логику работы регистра адреса RA
-	begin
-		if clk'event and clk='1' then -- по положительному фронту 
-		 if load_RA='1' then  RA<=IA; -- если есть разрешение, то загружаем исполнительный адрес первого операнда		
-				elsif incr_RA='1' then RA<=RA+1; --инкремент адреса"00000001"
-		 end if;
-		end if;
-end process pr_RA;
-------------------------------------------------------------------------------------------------
--- Ниже приводится описание устройства управления для ЦУУ- блока микрокоманд БМК. Рассматривается пока только одна операция умножение
-TS: process (clk,set) -- этот процесс определяет текущее состояние МУУ
-	 begin
-		if set = '1' then
+	---------------------------------------------------------------------------------------
+
+	pr_RK : PROCESS (clk) -- этот процесс определяет поведение регистра команд
+	BEGIN
+		IF clk'event AND clk = '1' THEN -- по положительному фронту clk
+			IF load_RK = '1' THEN -- если есть разрешение на прием команды
+				RK <= data_out_OP; -- выполняется прием команды с выхода ОП
+			END IF;
+		END IF;
+	END PROCESS pr_RK;
+	---------------------------------------------------------------------------------------------
+	pr_RA : PROCESS (clk)-- этот процесс описывает логику работы регистра адреса RA
+	BEGIN
+		IF clk'event AND clk = '1' THEN -- по положительному фронту 
+			IF load_RA = '1' THEN
+				RA <= IA; -- если есть разрешение, то загружаем исполнительный адрес первого операнда		
+			ELSIF incr_RA = '1' THEN
+				RA <= RA + 1; --инкремент адреса"00000001"
+			END IF;
+		END IF;
+	END PROCESS pr_RA;
+	------------------------------------------------------------------------------------------------
+	-- Ниже приводится описание устройства управления для ЦУУ- блока микрокоманд БМК. Рассматривается пока только одна операция умножение
+	TS : PROCESS (clk, set) -- этот процесс определяет текущее состояние МУУ
+	BEGIN
+		IF set = '1' THEN
 			state <= s0;
-		elsif (rising_edge(clk)) then -- по положительному фронту переключаются состояния
-			state <= next_state;			
-		end if;
-	 end process TS;
+		ELSIF (rising_edge(clk)) THEN -- по положительному фронту переключаются состояния
+			state <= next_state;
+		END IF;
+	END PROCESS TS;
+	NS : PROCESS (state, cop, sko) -- этот процесс определяет следующее состояние МУУ, управляющие сигналы
+	BEGIN
+		-- 
 
-	 
-NS: process (state,cop,sko) -- этот процесс определяет следующее состояние МУУ, управляющие сигналы
-	 begin
--- 
+		CASE state IS
+			WHEN s0 => -- переходы из s0
 
-			case state is
-				when s0=> -- переходы из s0
-				 
-					if (set = '0') then
-						next_state <= s1; -- если сигнал set не активен,load_RK, incr_CK 
-					else
-						next_state <= s0; -- иначе состояние не меняется
-					end if;
-				when s1=>
-				   
-					next_state <= s2; -- из s1 переходим в s2, incr_CK
-	
-				when s2=>
-					
-						next_state <= s3; -- из s2 всегда переходим в s3 load_RA,
+				IF (set = '0') THEN
+					next_state <= s1; -- если сигнал set не активен,load_RK, incr_CK 
+				ELSE
+					next_state <= s0; -- иначе состояние не меняется
+				END IF;
+			WHEN s1 =>
 
-				when s3 =>
-						next_state <= s4;  -- из s3 всегда переходим в s4, sno=1,summ_RA
-						
-				when s4 =>
-							
-					if (sko='1') then
-						next_state <= s5;  -- из s4 переходим в s5, если есть sko, запись младшей части результата в ОП
-					else 
-						next_state <= s4; -- ждем завершения операции
-					end if;
-				when s5 =>
-						next_state <= s6; -- Запись старшей части результата в ОП
-				when s6 =>		
-						next_state <= s0; -- из s6 всегда переходим в s0, это пустой такт, чтобы завершить запись
-			end case;			
-	end process NS;
----------------------------------------------------------------------------------------------------------
--- ниже приводится описание управляющих сигналов для БМК
+				next_state <= s2; -- из s1 переходим в s2, incr_CK
 
-incr_CK<='1' when (state=s0  or state =s1) else -- разрешение на инкремент СК	если умножение
-			'0';
-load_RK<='1' when (state=s0) else -- загрузка команды в RK всегда в s0 для любой операции
-			'0';
-load_RA<='1' when (state=s2) else -- загрузка ИА в RA в s2 для операции умножения
-			'0';
-incr_RA <='1' when (state=s4 and sko='1') else -- инкремент RA для записи старшей части результата в ОП, только для умножения
-			'0';
-sno <='1' when (state=s3) else -- когда извлекли операнды на шину А и В 
-			'0';
-wr_en_OP<='1' when ((state=s4 and sko='1') or state=s5) else -- запись в ОП только при умножении 
-			'0';					
-data_in_OP<= rr(2*n-1 downto n) when (state= s5) else
-				 rr(n-1 downto 0);
--- address_OP <= RA when (state=s3 or state=s4 or state=s5 or state=s6) else -- в ОП только при умножении 
---				  CK;
-address_OP <= CK	when(state=s0 or state=s1 or state=s6) else
-				  IA	when state=s2 else
-				  RA; 
-				  
-IA<= data_out_OP+q_a; -- вычисляем исполнительный адрес первого операнда
+			WHEN s2 =>
 
-a<= data_out_OP; -- на шину А- первого операнда подаем первый операнд с выхода ОП				  
-b<= q_b; --на шину В - второго операнда подаем второй операнд из РП	
-cop<='1'; -- пока для умножения, потом для отладки можно изменить
----------------------------------------------------------------------------------------------------
+				next_state <= s3; -- из s2 всегда переходим в s3 load_RA,
+
+			WHEN s3 =>
+				next_state <= s4; -- из s3 всегда переходим в s4, sno=1,summ_RA
+
+			WHEN s4 =>
+
+				IF (sko = '1') THEN
+					next_state <= s5; -- из s4 переходим в s5, если есть sko, запись младшей части результата в ОП
+				ELSE
+					next_state <= s4; -- ждем завершения операции
+				END IF;
+			WHEN s5 =>
+				next_state <= s6; -- Запись старшей части результата в ОП
+			WHEN s6 =>
+				next_state <= s0; -- из s6 всегда переходим в s0, это пустой такт, чтобы завершить запись
+		END CASE;
+	END PROCESS NS;
+	---------------------------------------------------------------------------------------------------------
+	-- ниже приводится описание управляющих сигналов для БМК
+
+	incr_CK <= '1' WHEN (state = s0 OR state = s1) ELSE -- разрешение на инкремент СК	если умножение
+		'0';
+	load_RK <= '1' WHEN (state = s0) ELSE -- загрузка команды в RK всегда в s0 для любой операции
+		'0';
+	load_RA <= '1' WHEN (state = s2) ELSE -- загрузка ИА в RA в s2 для операции умножения
+		'0';
+	incr_RA <= '1' WHEN (state = s4 AND sko = '1') ELSE -- инкремент RA для записи старшей части результата в ОП, только для умножения
+		'0';
+	sno <= '1' WHEN (state = s3) ELSE -- когда извлекли операнды на шину А и В 
+		'0';
+	wr_en_OP <= '1' WHEN ((state = s4 AND sko = '1') OR state = s5) ELSE -- запись в ОП только при умножении 
+		'0';
+	data_in_OP <= rr(2 * n - 1 DOWNTO n) WHEN (state = s5) ELSE
+		rr(n - 1 DOWNTO 0);
+	-- address_OP <= RA when (state=s3 or state=s4 or state=s5 or state=s6) else -- в ОП только при умножении 
+	--				  CK;
+	address_OP <= CK WHEN(state = s0 OR state = s1 OR state = s6) ELSE
+		IA WHEN state = s2 ELSE
+		RA;
+
+	IA <= data_out_OP + q_a; -- вычисляем исполнительный адрес первого операнда
+
+	a <= data_out_OP; -- на шину А- первого операнда подаем первый операнд с выхода ОП				  
+	b <= q_b; --на шину В - второго операнда подаем второй операнд из РП	
+	cop <= '1'; -- пока для умножения, потом для отладки можно изменить
+	---------------------------------------------------------------------------------------------------
 	--  отладочный выход для наблюдения текущего состояния
-		s_out<="000" when state=s0 else
-				  "001" when state=s1 else					
-				  "010" when state=s2 else
-				  "011" when state=s3 else
-				  "100" when state=s4 else
-				  "101" when state=s5 else
-				  "110";
-	
-end arch;
+	s_out <= "000" WHEN state = s0 ELSE
+		"001" WHEN state = s1 ELSE
+		"010" WHEN state = s2 ELSE
+		"011" WHEN state = s3 ELSE
+		"100" WHEN state = s4 ELSE
+		"101" WHEN state = s5 ELSE
+		"110";
 
-
+END arch;
