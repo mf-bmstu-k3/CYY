@@ -25,18 +25,19 @@ LIBRARY IEEE;
 USE IEEE.STD_LOGIC_1164.ALL;
 USE IEEE.STD_LOGIC_ARITH.ALL;
 USE IEEE.STD_LOGIC_UNSIGNED.ALL;
+--use IEEE.numeric_std.all; -- добавляем библиотеку
 LIBRARY work;
 
-LIBRARY altera_mf;
+--LIBRARY altera_mf;
 
-USE altera_mf.altera_mf_components.ALL;
+--USE altera_mf.altera_mf_components.all;
 
-ENTITY CYY_AU_OP_RP IS
+ENTITY CYY_AU_OP_RP_F IS
 	GENERIC (n : INTEGER := 8); -- n параметр, задает разрядность операндов
 	PORT (
 		clk : IN STD_LOGIC; -- тактовый сигнал
 		set : IN STD_LOGIC; --  сигнал начальной установки
-		f_com : IN STD_LOGIC_VECTOR(1 DOWNTO 0); -- пока задает формат команды: 2 - УП; 1 - РР; 0 - ПР
+		f_com : BUFFER STD_LOGIC_VECTOR(1 DOWNTO 0); -- пока задает формат команды: 2 - УП; 1 - РР; 0 - ПР
 		-- Для взаимодействия с АУ
 		a : BUFFER STD_LOGIC_VECTOR (n - 1 DOWNTO 0);-- первый операнд для АУ		
 		b : BUFFER STD_LOGIC_VECTOR (n - 1 DOWNTO 0);-- второй операнд для АУ		
@@ -69,9 +70,9 @@ ENTITY CYY_AU_OP_RP IS
 		q_b : BUFFER STD_LOGIC_VECTOR (7 DOWNTO 0) -- данные из РП с порта b
 	);
 
-END ENTITY CYY_AU_OP_RP;
+END ENTITY CYY_AU_OP_RP_F;
 
-ARCHITECTURE arch OF CYY_AU_OP_RP IS
+ARCHITECTURE arch OF CYY_AU_OP_RP_F IS
 
 	-----------------------------Декларация компонента ОП на 256 байт --------------------------------------------------------------------
 
@@ -88,7 +89,7 @@ ARCHITECTURE arch OF CYY_AU_OP_RP IS
 	-- Следующим компонентом является память регистровая RP 
 	-- Декларация компонента регистровой памяти на 8 байт
 	-- Содержит два порта a и b
-	-- Создан в QII версии 13.1 Как его создать есть в методичке
+	-- Создан в QII версии 13.1 Как его создать, есть в методичке
 	COMPONENT Ram_2port_11
 		PORT (
 			address_a : IN STD_LOGIC_VECTOR(2 DOWNTO 0); -- адресный вход порта а
@@ -168,7 +169,6 @@ BEGIN
 		ELSIF clk'event AND clk = '1' THEN
 			IF (incr_CK = '1') THEN
 				CK <= CK + "00000001"; -- инкремент счетчика
-				--			elsif (summ_CK='1') then CK<= sum_adr(CK,RK(5)&RK(5)& RK(5 downto 0)); --CK +'0'&'0'& RK(5 downto 0); -- вычисление адреса перехода
 			ELSIF (summ_CK = '1') THEN
 				CK <= CK + (RK(5) & RK(5) & RK(5 DOWNTO 0)); -- вычисление адреса перехода
 			END IF;
@@ -222,7 +222,7 @@ BEGIN
 					next_state <= s2; -- переходим в s2 в случае ПР
 				ELSIF (f_com = "01") THEN
 					next_state <= s3; -- переходим в s3 в случае РР
-				ELSIF priznak = "11" THEN
+				ELSIF priznak = "10" THEN
 					next_state <= s6; -- переходим в s6 в случае УП и условие пер выполнено
 				ELSE
 					next_state <= s0; -- иначе в s0
@@ -256,7 +256,7 @@ BEGIN
 
 	incr_CK <= '1' WHEN (state = s0 OR (state = s1 AND f_com = "00")) ELSE -- разрешение на инкремент СК	всегда в s0  и в s1, если формат П-Р
 		'0';
-	summ_CK <= '1' WHEN state = s1 AND f_com = "10" AND priznak = "11" ELSE -- разрешение на приращение СК если выполняется условие перехода
+	summ_CK <= '1' WHEN state = s1 AND f_com = "10" AND priznak = "10" ELSE -- разрешение на приращение СК если выполняется условие перехода
 		'0';
 	load_RK <= '1' WHEN (state = s0) ELSE -- загрузка команды в RK всегда в s0 для любой операции
 		'0';
@@ -281,14 +281,20 @@ BEGIN
 	a <= data_out_OP WHEN f_com = "00" ELSE --на шину А- первого операнда подаем первый операнд с выхода ОП, если формат память регистр
 		q_a; -- 	либо с РП с выхода данных первого порта а, если формат регистр регистр 			  
 	b <= q_b; --на шину В - второго операнда подаем второй операнд, считанный через порт b РП	
-	cop <= '0'; -- пока для сложения, потом для отладки можно изменить
+
+	-- сигнал f_com привязываем к полю сор, задаваемому в разрядах RK[7..6]
+	-- используем такое кодирование, как в восьмом проекте АУ: 00- сложение, 01-умножение
+	f_com <= "00" WHEN RK(7 DOWNTO 6) = "01" ELSE -- если умн, то ПР
+		"01" WHEN RK(7 DOWNTO 6) = "00" ELSE -- если сложение, то РР
+		"10"; -- если переход
+
+	cop <= RK(6); -- этот разряд определяет операцию в арифметическом устройстве
 	---------------------------------------------------------------------------------------------------
-	--wren_a_RP<='0'; -- пока не пишем в РП
-	--wren_b_RP<='0';
+	--wren_b_RP<='0'; задаем в карте портов
 	address_a_RP <= RK (5 DOWNTO 3); -- поле R1  в команде
-	--data_a_RP<= rr(7 downto 0); -- Записываем в РП только младшую часть результата
+	--data_a_RP<= rr(7 downto 0); -- задаем в карте портов
 	address_b_RP <= RK (2 DOWNTO 0); -- поле R2  в команде, 
-	--data_b_RP<= (others=>'0'); -- задаем все нули
+	--data_b_RP<= (others=>'0'); -- задаем все нули в карте портов
 	---------------------------------------------------------------------------------------------------
 
 	-----------------------------------------------------------------------------------------------------
